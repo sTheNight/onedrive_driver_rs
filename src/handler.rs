@@ -17,8 +17,7 @@ pub async fn get_file_list(
         .trim_start_matches("/api/list")
         .trim_matches('/')
         .to_string();
-    let service = OneDriveApiService::from_state(&state)
-        .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
+    let service = OneDriveApiService::from_state(&state);
 
     let list = service
         .get_file_list(&path)
@@ -44,8 +43,7 @@ pub async fn download_file(
         .trim_matches('/')
         .to_string();
 
-    let service = OneDriveApiService::from_state(&state)
-        .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
+    let service = OneDriveApiService::from_state(&state);
     let item = service
         .get_item_info(&path)
         .await

@@ -4,7 +4,7 @@ use crate::{
     state::{AccessToken, AppState},
     utils,
 };
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 pub struct OneDriveApiService {
     pub state: AppState,
@@ -12,15 +12,11 @@ pub struct OneDriveApiService {
 }
 
 impl OneDriveApiService {
-    pub fn from_state(state: &AppState) -> Result<Self, OneDriveApiError> {
-        Ok(Self {
+    pub fn from_state(state: &AppState) -> Self {
+        Self {
             state: state.clone(),
-            client: reqwest::Client::builder()
-                .user_agent("onedrive_driver_rs/0.1")
-                .timeout(Duration::from_secs(60))
-                .build()
-                .map_err(OneDriveApiError::HttpClientBuild)?,
-        })
+            client: state.http_client.clone(),
+        }
     }
 
     pub async fn get_file_list(&self, path: &str) -> Result<Vec<FileListItem>, OneDriveApiError> {

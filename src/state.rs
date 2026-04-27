@@ -1,8 +1,5 @@
-use std::sync::Arc;
-use tokio::{
-    sync::Mutex,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::Mutex, time::Instant};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppStateError {
@@ -10,6 +7,8 @@ pub enum AppStateError {
     MissingEnvVar(&'static str),
     #[error("{0} is null")]
     EmptyEnvVar(&'static str),
+    #[error("failed to build http client: {0}")]
+    HttpClientBuild(#[from] reqwest::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +39,7 @@ pub struct AppState {
     pub client_id: String,
     pub client_secret: String,
     pub access_token: Arc<Mutex<Option<AccessToken>>>,
+    pub http_client: reqwest::Client,
 }
 
 impl AppState {
@@ -51,12 +51,18 @@ impl AppState {
             .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_CLIENT_SECRET"))?;
         let refresh_token = std::env::var("ONEDRIVE_REFRESH_TOKEN")
             .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_REFRESH_TOKEN"))?;
+        let http_client = reqwest::Client::builder()
+            .user_agent("onedrive_driver_rs/0.1")
+            .timeout(Duration::from_secs(60))
+            .build()?;
+
         Ok(Self {
             root_path,
             refresh_token,
             client_id,
             client_secret,
             access_token: Arc::new(Mutex::new(None)),
+            http_client,
         })
     }
 }

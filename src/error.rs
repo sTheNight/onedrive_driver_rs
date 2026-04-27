@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum OneDriveApiError {
-    #[error("failed to build http client: {0}")]
-    HttpClientBuild(#[source] reqwest::Error),
     #[error("request failed: {0}")]
     RequestFailed(#[from] reqwest::Error),
     #[error("upstream returned status {status}: {body}")]
@@ -48,9 +46,7 @@ impl ErrorMessage {
 impl From<OneDriveApiError> for ErrorMessage {
     fn from(error: OneDriveApiError) -> Self {
         let status = match &error {
-            OneDriveApiError::HttpClientBuild(_) | OneDriveApiError::GraphUrlBuild(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR.as_u16()
-            }
+            OneDriveApiError::GraphUrlBuild(_) => StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
             OneDriveApiError::RequestFailed(_) | OneDriveApiError::InvalidExpiresIn(_) => {
                 StatusCode::BAD_GATEWAY.as_u16()
             }
