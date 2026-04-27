@@ -11,6 +11,7 @@ mod handler;
 mod models;
 mod service;
 mod state;
+mod utils;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {

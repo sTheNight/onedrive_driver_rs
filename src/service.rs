@@ -2,6 +2,7 @@ use crate::{
     error::OneDriveApiError,
     models::{self, FileListItem, GraphDriveItem, GraphListResponse},
     state::{AccessToken, AppState},
+    utils,
 };
 use std::{collections::HashMap, time::Duration};
 
@@ -24,21 +25,11 @@ impl OneDriveApiService {
 
     pub async fn get_file_list(&self, path: &str) -> Result<Vec<FileListItem>, OneDriveApiError> {
         let access_token = self.get_access_token().await?;
-
-        let path = path.trim_matches('/');
-
-        let url = if path.is_empty() {
-            "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
-        } else {
-            format!(
-                "https://graph.microsoft.com/v1.0/me/drive/root:/{}:/children",
-                path
-            )
-        };
+        let url = utils::graph_children_url(&self.state, path)?;
 
         let response = self
             .client
-            .get(&url)
+            .get(url)
             .bearer_auth(access_token)
             .send()
             .await?;
@@ -54,9 +45,9 @@ impl OneDriveApiService {
     }
 
     pub async fn get_item_info(&self, path: &str) -> Result<FileListItem, OneDriveApiError> {
-        let url = format!("https://graph.microsoft.com/v1.0/me/drive/root:/{}:", path);
+        let url = utils::graph_item_url(&self.state, path)?;
         let token = self.get_access_token().await?;
-        let response = self.client.get(&url).bearer_auth(token).send().await?;
+        let response = self.client.get(url).bearer_auth(token).send().await?;
         let response = Self::ensure_success(response).await?;
 
         Ok(FileListItem::from(response.json::<GraphDriveItem>().await?))
@@ -65,10 +56,10 @@ impl OneDriveApiService {
     async fn get_access_token(&self) -> Result<String, OneDriveApiError> {
         {
             let token = self.state.access_token.lock().await;
-            if let Some(token) = token.as_ref() {
-                if !token.is_expired() {
-                    return Ok(token.access_token.clone());
-                }
+            if let Some(token) = token.as_ref()
+                && !token.is_expired()
+            {
+                return Ok(token.access_token.clone());
             }
         }
 

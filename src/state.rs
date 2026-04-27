@@ -44,7 +44,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn from_env() -> Result<Self, AppStateError> {
-        let root_path = std::env::var("ONEDRIVE_ROOT_PATH").unwrap();
+        let root_path = std::env::var("ONEDRIVE_ROOT_PATH").unwrap_or_default();
         let client_id = std::env::var("ONEDRIVE_CLIENT_ID")
             .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_CLIENT_ID"))?;
         let client_secret = std::env::var("ONEDRIVE_CLIENT_SECRET")

@@ -13,6 +13,8 @@ pub enum OneDriveApiError {
     RequestFailed(#[from] reqwest::Error),
     #[error("upstream returned status {status}: {body}")]
     UpstreamStatus { status: u16, body: String },
+    #[error("failed to build Graph URL: {0}")]
+    GraphUrlBuild(String),
     #[error("invalid expires_in value: {0}")]
     InvalidExpiresIn(i64),
 }
@@ -46,7 +48,9 @@ impl ErrorMessage {
 impl From<OneDriveApiError> for ErrorMessage {
     fn from(error: OneDriveApiError) -> Self {
         let status = match &error {
-            OneDriveApiError::HttpClientBuild(_) => StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+            OneDriveApiError::HttpClientBuild(_) | OneDriveApiError::GraphUrlBuild(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR.as_u16()
+            }
             OneDriveApiError::RequestFailed(_) | OneDriveApiError::InvalidExpiresIn(_) => {
                 StatusCode::BAD_GATEWAY.as_u16()
             }

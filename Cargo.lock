@@ -836,6 +836,7 @@ dependencies = [
  "bytes",
  "dotenvy",
  "futures",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",
