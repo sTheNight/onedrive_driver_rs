@@ -111,18 +111,19 @@ impl OneDriveApiService {
     ) -> Result<reqwest::Response, OneDriveApiError> {
         let status = response.status();
 
-        if status.is_success() {
-            return Ok(response);
+        match status {
+            status if status.is_success() => Ok(response),
+            status => {
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|err| format!("failed to read upstream error body: {err}"));
+
+                Err(OneDriveApiError::UpstreamStatus {
+                    status: status.as_u16(),
+                    body,
+                })
+            }
         }
-
-        let body = response
-            .text()
-            .await
-            .unwrap_or_else(|err| format!("failed to read upstream error body: {err}"));
-
-        Err(OneDriveApiError::UpstreamStatus {
-            status: status.as_u16(),
-            body,
-        })
     }
 }

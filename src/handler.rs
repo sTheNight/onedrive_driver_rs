@@ -50,23 +50,21 @@ pub async fn download_file(
         .get_item_info(&path)
         .await
         .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/json"),
-    );
-
-    if matches!(&item.item_type, FileListItemType::File) {
-        if let Some(download_url) = item.download_url.as_deref() {
-            Ok(Redirect::temporary(download_url).into_response())
-        } else {
-            Err(ErrorMessage::new(
+    match item.item_type {
+        FileListItemType::File => match item.download_url {
+            Some(download_url) if !download_url.is_empty() => {
+                Ok(Redirect::temporary(download_url.as_str()).into_response())
+            }
+            _ => Err(ErrorMessage::new(
                 StatusCode::NOT_FOUND,
                 request_path,
                 "download url not found",
-            ))
-        }
-    } else {
-        Ok((headers, Json(item)).into_response())
+            )),
+        },
+        FileListItemType::Folder => Err(ErrorMessage::new(
+            StatusCode::BAD_REQUEST,
+            request_path,
+            "folder cannot be downloaded directly",
+        )),
     }
 }
