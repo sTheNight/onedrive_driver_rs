@@ -26,7 +26,7 @@ async fn main() -> std::io::Result<()> {
     });
 
     let cors = CorsLayer::new().allow_methods(Any).allow_origin(Any);
-    let listen_port: u16 = 3000;
+    let listen_port = utils::get_env("LISTEN_PORT", 3000);
     let addr = SocketAddr::from(([127, 0, 0, 1], listen_port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
@@ -37,6 +37,7 @@ async fn main() -> std::io::Result<()> {
         .route("/api/download/{*path}", get(handler::download_file))
         .layer(cors)
         .with_state(state);
+    tracing::info!("Server listing on http://{}", addr);
     axum::serve(listener, app).await
 }
 

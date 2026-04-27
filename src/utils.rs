@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{error::OneDriveApiError, state::AppState};
 use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
 
@@ -75,4 +77,14 @@ fn encode_graph_path(segments: &[String]) -> String {
 
 fn parse_graph_url(url: &str) -> Result<reqwest::Url, OneDriveApiError> {
     reqwest::Url::parse(url).map_err(|err| OneDriveApiError::GraphUrlBuild(err.to_string()))
+}
+
+pub fn get_env<T: FromStr + std::fmt::Display>(key: &str, default: T) -> T {
+    std::env::var(key)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| {
+            tracing::warn!("Invalid or missing {}, fallback to {}", key, default);
+            default
+        })
 }
