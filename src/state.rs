@@ -1,3 +1,9 @@
+use std::sync::Arc;
+use tokio::{
+    sync::Mutex,
+    time::{Duration, Instant},
+};
+
 #[derive(Debug, thiserror::Error)]
 pub enum AppStateError {
     #[error("{0} is empty")]
@@ -5,12 +11,35 @@ pub enum AppStateError {
     #[error("{0} is null")]
     EmptyEnvVar(&'static str),
 }
+
+#[derive(Debug, Clone)]
+pub struct AccessToken {
+    pub access_token: String,
+    pub expires_at: Instant,
+}
+
+impl AccessToken {
+    pub fn new(access_token: String, expires_in: u64) -> Self {
+        let safe_expires_in = expires_in.saturating_sub(60);
+
+        Self {
+            access_token,
+            expires_at: Instant::now() + Duration::from_secs(safe_expires_in),
+        }
+    }
+
+    pub fn is_expired(&self) -> bool {
+        Instant::now() >= self.expires_at
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub root_path: String,
     pub refresh_token: String,
     pub client_id: String,
     pub client_secret: String,
+    pub access_token: Arc<Mutex<Option<AccessToken>>>,
 }
 
 impl AppState {
@@ -27,6 +56,7 @@ impl AppState {
             refresh_token,
             client_id,
             client_secret,
+            access_token: Arc::new(Mutex::new(None)),
         })
     }
 }

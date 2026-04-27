@@ -1,3 +1,4 @@
+use crate::{service::OneDriveApiService, state::AppState};
 use axum::{
     Json,
     extract::{OriginalUri, State},
@@ -5,14 +6,12 @@ use axum::{
     response::IntoResponse,
 };
 
-use crate::{service::OneDriveApiService, state::AppState};
-
 pub async fn get_file_list(
     State(state): State<AppState>,
     OriginalUri(uri): OriginalUri,
 ) -> impl IntoResponse {
     let path = uri.path().trim_start_matches("/api/list").trim_matches('/');
-    let mut service = OneDriveApiService::from_state(&state);
+    let service = OneDriveApiService::from_state(&state);
 
     let list = service.get_file_list(path).await;
 
@@ -24,6 +23,7 @@ pub async fn get_file_list(
 
     (headers, Json(list))
 }
+
 pub async fn download_file() -> impl IntoResponse {
     return Json("Hello World!");
 }

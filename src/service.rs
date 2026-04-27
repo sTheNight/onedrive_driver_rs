@@ -1,9 +1,8 @@
 use crate::{
     models::{self, FileListItem, GraphListResponse},
-    state::AppState,
+    state::{AccessToken, AppState},
 };
 use std::{collections::HashMap, time::Duration};
-use tokio::time::Instant;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OneDriveApiError {
@@ -13,22 +12,9 @@ pub enum OneDriveApiError {
     InvalidExpiresIn(i64),
 }
 
-#[derive(Debug, Clone)]
-pub struct AccessToken {
-    pub access_token: String,
-    pub expires_at: Instant,
-}
-
-impl AccessToken {
-    pub fn is_expired(&self) -> bool {
-        Instant::now() >= self.expires_at
-    }
-}
-
 pub struct OneDriveApiService {
     pub state: AppState,
     client: reqwest::Client,
-    access_token: Option<AccessToken>,
 }
 
 impl OneDriveApiService {
@@ -40,11 +26,10 @@ impl OneDriveApiService {
                 .timeout(Duration::from_secs(60))
                 .build()
                 .expect("failed to build reqwest client"),
-            access_token: None,
         }
     }
-
-    pub async fn get_file_list(&mut self, path: &str) -> Vec<FileListItem> {
+    // TODO: 把 unwrap 干掉
+    pub async fn get_file_list(&self, path: &str) -> Vec<FileListItem> {
         let access_token = self.get_access_token().await.unwrap();
 
         let path = path.trim_matches('/');
@@ -75,10 +60,13 @@ impl OneDriveApiService {
             .collect()
     }
 
-    async fn get_access_token(&mut self) -> Result<String, OneDriveApiError> {
-        if let Some(token) = &self.access_token {
-            if !token.is_expired() {
-                return Ok(token.access_token.clone());
+    async fn get_access_token(&self) -> Result<String, OneDriveApiError> {
+        {
+            let token = self.state.access_token.lock().await;
+            if let Some(token) = token.as_ref() {
+                if !token.is_expired() {
+                    return Ok(token.access_token.clone());
+                }
             }
         }
 
@@ -118,16 +106,13 @@ impl OneDriveApiService {
             ));
         }
 
-        let expires_in = token_response.expires_in as u64;
-        let safe_expires_in = expires_in.saturating_sub(60);
-
-        let token = AccessToken {
-            access_token: token_response.access_token,
-            expires_at: Instant::now() + Duration::from_secs(safe_expires_in),
-        };
+        let token = AccessToken::new(
+            token_response.access_token,
+            token_response.expires_in as u64,
+        );
 
         let access_token = token.access_token.clone();
-        self.access_token = Some(token);
+        *self.state.access_token.lock().await = Some(token);
 
         Ok(access_token)
     }
