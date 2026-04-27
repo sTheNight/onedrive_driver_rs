@@ -1,16 +1,9 @@
 use crate::{
-    models::{self, FileListItem, GraphListResponse},
+    error::OneDriveApiError,
+    models::{self, FileListItem, GraphDriveItem, GraphListResponse},
     state::{AccessToken, AppState},
 };
 use std::{collections::HashMap, time::Duration};
-
-#[derive(Debug, thiserror::Error)]
-pub enum OneDriveApiError {
-    #[error("request failed: {0}")]
-    RequestFailed(String),
-    #[error("invalid expires_in value: {0}")]
-    InvalidExpiresIn(i64),
-}
 
 pub struct OneDriveApiService {
     pub state: AppState,
@@ -18,19 +11,19 @@ pub struct OneDriveApiService {
 }
 
 impl OneDriveApiService {
-    pub fn from_state(state: &AppState) -> Self {
-        Self {
+    pub fn from_state(state: &AppState) -> Result<Self, OneDriveApiError> {
+        Ok(Self {
             state: state.clone(),
             client: reqwest::Client::builder()
                 .user_agent("onedrive_driver_rs/0.1")
                 .timeout(Duration::from_secs(60))
                 .build()
-                .expect("failed to build reqwest client"),
-        }
+                .map_err(OneDriveApiError::HttpClientBuild)?,
+        })
     }
-    // TODO: 把 unwrap 干掉
-    pub async fn get_file_list(&self, path: &str) -> Vec<FileListItem> {
-        let access_token = self.get_access_token().await.unwrap();
+
+    pub async fn get_file_list(&self, path: &str) -> Result<Vec<FileListItem>, OneDriveApiError> {
+        let access_token = self.get_access_token().await?;
 
         let path = path.trim_matches('/');
 
@@ -48,16 +41,25 @@ impl OneDriveApiService {
             .get(&url)
             .bearer_auth(access_token)
             .send()
-            .await
-            .unwrap();
+            .await?;
+        let response = Self::ensure_success(response).await?;
 
-        let response_deser = response.json::<GraphListResponse>().await.unwrap();
+        let response_deser = response.json::<GraphListResponse>().await?;
 
-        response_deser
+        Ok(response_deser
             .value
             .into_iter()
             .map(FileListItem::from)
-            .collect()
+            .collect())
+    }
+
+    pub async fn get_item_info(&self, path: &str) -> Result<FileListItem, OneDriveApiError> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/drive/root:/{}:", path);
+        let token = self.get_access_token().await?;
+        let response = self.client.get(&url).bearer_auth(token).send().await?;
+        let response = Self::ensure_success(response).await?;
+
+        Ok(FileListItem::from(response.json::<GraphDriveItem>().await?))
     }
 
     async fn get_access_token(&self) -> Result<String, OneDriveApiError> {
@@ -82,23 +84,10 @@ impl OneDriveApiService {
             .post("https://login.microsoftonline.com/common/oauth2/v2.0/token")
             .form(&params)
             .send()
-            .await
-            .map_err(|e| OneDriveApiError::RequestFailed(e.to_string()))?;
+            .await?;
+        let response = Self::ensure_success(response).await?;
 
-        let status = response.status();
-
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-
-            return Err(OneDriveApiError::RequestFailed(format!(
-                "status: {status}, body: {body}"
-            )));
-        }
-
-        let token_response = response
-            .json::<models::TokenResponse>()
-            .await
-            .map_err(|e| OneDriveApiError::RequestFailed(e.to_string()))?;
+        let token_response = response.json::<models::TokenResponse>().await?;
 
         if token_response.expires_in <= 0 {
             return Err(OneDriveApiError::InvalidExpiresIn(
@@ -115,5 +104,25 @@ impl OneDriveApiService {
         *self.state.access_token.lock().await = Some(token);
 
         Ok(access_token)
+    }
+
+    async fn ensure_success(
+        response: reqwest::Response,
+    ) -> Result<reqwest::Response, OneDriveApiError> {
+        let status = response.status();
+
+        if status.is_success() {
+            return Ok(response);
+        }
+
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|err| format!("failed to read upstream error body: {err}"));
+
+        Err(OneDriveApiError::UpstreamStatus {
+            status: status.as_u16(),
+            body,
+        })
     }
 }

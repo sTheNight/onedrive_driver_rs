@@ -1,19 +1,29 @@
-use crate::{service::OneDriveApiService, state::AppState};
+use crate::{
+    error::ErrorMessage, models::FileListItemType, service::OneDriveApiService, state::AppState,
+};
 use axum::{
     Json,
     extract::{OriginalUri, State},
-    http::{HeaderMap, HeaderValue, header},
-    response::IntoResponse,
+    http::{HeaderMap, HeaderValue, StatusCode, header},
+    response::{IntoResponse, Redirect, Response},
 };
 
 pub async fn get_file_list(
     State(state): State<AppState>,
     OriginalUri(uri): OriginalUri,
-) -> impl IntoResponse {
-    let path = uri.path().trim_start_matches("/api/list").trim_matches('/');
-    let service = OneDriveApiService::from_state(&state);
+) -> Result<impl IntoResponse, ErrorMessage> {
+    let request_path = uri.path().to_string();
+    let path = request_path
+        .trim_start_matches("/api/list")
+        .trim_matches('/')
+        .to_string();
+    let service = OneDriveApiService::from_state(&state)
+        .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
 
-    let list = service.get_file_list(path).await;
+    let list = service
+        .get_file_list(&path)
+        .await
+        .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
 
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -21,9 +31,42 @@ pub async fn get_file_list(
         HeaderValue::from_static("application/json"),
     );
 
-    (headers, Json(list))
+    Ok((headers, Json(list)))
 }
 
-pub async fn download_file() -> impl IntoResponse {
-    return Json("Hello World!");
+pub async fn download_file(
+    State(state): State<AppState>,
+    OriginalUri(uri): OriginalUri,
+) -> Result<Response, ErrorMessage> {
+    let request_path = uri.path().to_string();
+    let path = request_path
+        .trim_start_matches("/api/download")
+        .trim_matches('/')
+        .to_string();
+
+    let service = OneDriveApiService::from_state(&state)
+        .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
+    let item = service
+        .get_item_info(&path)
+        .await
+        .map_err(|err| ErrorMessage::from(err).with_request_path(&request_path))?;
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+
+    if matches!(&item.item_type, FileListItemType::File) {
+        if let Some(download_url) = item.download_url.as_deref() {
+            Ok(Redirect::temporary(download_url).into_response())
+        } else {
+            Err(ErrorMessage::new(
+                StatusCode::NOT_FOUND,
+                request_path,
+                "download url not found",
+            ))
+        }
+    } else {
+        Ok((headers, Json(item)).into_response())
+    }
 }

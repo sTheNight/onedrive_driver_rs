@@ -6,6 +6,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::state::AppState;
 
+mod error;
 mod handler;
 mod models;
 mod service;
@@ -32,7 +33,7 @@ async fn main() -> std::io::Result<()> {
         .route("/api/list", get(handler::get_file_list))
         .route("/api/list/", get(handler::get_file_list))
         .route("/api/list/{*path}", get(handler::get_file_list))
-        .route("/api/download", get(handler::download_file))
+        .route("/api/download/{*path}", get(handler::download_file))
         .layer(cors)
         .with_state(state);
     axum::serve(listener, app).await
