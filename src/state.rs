@@ -5,8 +5,6 @@ use tokio::{sync::Mutex, time::Instant};
 pub enum AppStateError {
     #[error("{0} is empty")]
     MissingEnvVar(&'static str),
-    #[error("{0} is null")]
-    EmptyEnvVar(&'static str),
     #[error("failed to build http client: {0}")]
     HttpClientBuild(#[from] reqwest::Error),
 }
