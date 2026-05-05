@@ -1,6 +1,6 @@
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
-use tokio::{sync::Mutex, time::Instant};
+use tokio::{sync::RwLock, time::Instant};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppStateError {
@@ -31,7 +31,7 @@ impl AccessToken {
 
 #[derive(Clone, Debug)]
 pub struct AppState {
-    pub access_token: Arc<Mutex<Option<AccessToken>>>,
+    pub access_token: Arc<RwLock<Option<AccessToken>>>,
     pub db_connection: DatabaseConnection,
     pub http_client: reqwest::Client,
 }
@@ -44,7 +44,7 @@ impl AppState {
             .build()?;
 
         Ok(Self {
-            access_token: Arc::new(Mutex::new(None)),
+            access_token: Arc::new(RwLock::new(None)),
             db_connection,
             http_client,
         })

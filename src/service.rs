@@ -82,7 +82,7 @@ impl OneDriveApiService {
 
     async fn get_access_token(&self, config: &OneDriveConfig) -> Result<String, OneDriveApiError> {
         {
-            let token = self.state.access_token.lock().await;
+            let token = self.state.access_token.read().await;
             if let Some(token) = token.as_ref()
                 && !token.is_expired()
             {
@@ -119,7 +119,7 @@ impl OneDriveApiService {
         );
 
         let access_token = token.access_token.clone();
-        *self.state.access_token.lock().await = Some(token);
+        *self.state.access_token.write().await = Some(token);
 
         Ok(access_token)
     }
