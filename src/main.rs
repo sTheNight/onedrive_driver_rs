@@ -52,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
             get(handler::file_list::download_file),
         )
         .route("/api/admin/init", post(handler::admin::init_admin_user))
+        .route("/api/admin/login", post(handler::admin::login))
         .layer(cors)
         .fallback_service(spa_fallback_service)
         .with_state(state);
