@@ -5,143 +5,43 @@ use axum::{
     response::IntoResponse,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use bcrypt::{DEFAULT_COST, hash, verify};
+use bcrypt::verify;
 use jsonwebtoken::{EncodingKey, Header, encode};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{entity::admin_user, error::ErrorMessage, state::AppState};
 
-const ADMIN_TOKEN_COOKIE_NAME: &str = "admin_token";
+use super::auth::{ADMIN_TOKEN_COOKIE_NAME, jwt_secret};
+
 const JWT_EXPIRES_IN_SECONDS: u64 = 7 * 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
-pub struct InitAdminRequest {
+pub struct Request {
     pub username: String,
     pub password: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InitAdminResponse {
+pub struct Response {
     pub id: i32,
     pub username: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct LoginRequest {
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub(crate) struct Claims {
+    pub sub: String,
     pub username: String,
-    pub password: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LoginResponse {
-    pub id: i32,
-    pub username: String,
-}
-
-#[derive(Debug, Serialize)]
-struct AdminClaims {
-    sub: String,
-    username: String,
-    exp: usize,
-}
-
-pub async fn init_admin_user(
-    State(state): State<AppState>,
-    OriginalUri(uri): OriginalUri,
-    Json(payload): Json<InitAdminRequest>,
-) -> Result<impl IntoResponse, ErrorMessage> {
-    let request_path = uri.path().to_string();
-    let username = payload.username.trim().to_owned();
-
-    if username.is_empty() {
-        return Err(ErrorMessage::new(
-            StatusCode::BAD_REQUEST,
-            request_path,
-            "username is empty",
-        ));
-    }
-
-    if payload.password.is_empty() {
-        return Err(ErrorMessage::new(
-            StatusCode::BAD_REQUEST,
-            request_path,
-            "password is empty",
-        ));
-    }
-
-    let existing_admin_user_count = admin_user::Entity::find()
-        .count(&state.db_connection)
-        .await
-        .map_err(|err| {
-            ErrorMessage::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &request_path,
-                format!("failed to query existing admin user count: {err}"),
-            )
-        })?;
-
-    if existing_admin_user_count > 0 {
-        return Err(ErrorMessage::new(
-            StatusCode::CONFLICT,
-            request_path,
-            "admin user already initialized",
-        ));
-    }
-
-    let password = payload.password;
-    let password_hash = tokio::task::spawn_blocking(move || hash(password, DEFAULT_COST))
-        .await
-        .map_err(|err| {
-            ErrorMessage::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &request_path,
-                format!("failed to join password hash task: {err}"),
-            )
-        })?
-        .map_err(|err| {
-            ErrorMessage::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &request_path,
-                format!("failed to hash password: {err}"),
-            )
-        })?;
-
-    let admin_user = admin_user::ActiveModel {
-        id: Set(1),
-        username: Set(username),
-        password_hash: Set(password_hash),
-    }
-    .insert(&state.db_connection)
-    .await
-    .map_err(|err| {
-        let status = if err.to_string().contains("UNIQUE constraint failed") {
-            StatusCode::CONFLICT
-        } else {
-            StatusCode::INTERNAL_SERVER_ERROR
-        };
-
-        ErrorMessage::new(
-            status,
-            &request_path,
-            format!("failed to create admin user: {err}"),
-        )
-    })?;
-
-    Ok(Json(InitAdminResponse {
-        id: admin_user.id,
-        username: admin_user.username,
-    }))
+    pub exp: usize,
 }
 
 pub async fn login(
     State(state): State<AppState>,
     OriginalUri(uri): OriginalUri,
     jar: CookieJar,
-    Json(payload): Json<LoginRequest>,
+    Json(payload): Json<Request>,
 ) -> Result<impl IntoResponse, ErrorMessage> {
     let request_path = uri.path().to_string();
     let username = payload.username.trim().to_owned();
@@ -196,7 +96,7 @@ pub async fn login(
 
     Ok((
         jar,
-        Json(LoginResponse {
+        Json(Response {
             id: admin_user.id,
             username: admin_user.username,
         }),
@@ -207,13 +107,7 @@ fn create_admin_token(
     admin_user: &admin_user::Model,
     request_path: &str,
 ) -> Result<String, ErrorMessage> {
-    let jwt_secret = std::env::var("JWT_SECRET").map_err(|_| {
-        ErrorMessage::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            request_path,
-            "JWT_SECRET is missing",
-        )
-    })?;
+    let jwt_secret = jwt_secret(request_path)?;
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -226,7 +120,7 @@ fn create_admin_token(
         })?
         .as_secs();
 
-    let claims = AdminClaims {
+    let claims = Claims {
         sub: admin_user.id.to_string(),
         username: admin_user.username.clone(),
         exp: (now + JWT_EXPIRES_IN_SECONDS) as usize,

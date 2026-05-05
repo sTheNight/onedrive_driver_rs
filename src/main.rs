@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -53,6 +53,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/admin/init", post(handler::admin::init_admin_user))
         .route("/api/admin/login", post(handler::admin::login))
+        .route(
+            "/api/admin/onedrive-config",
+            put(handler::admin::update_onedrive_config),
+        )
         .layer(cors)
         .fallback_service(spa_fallback_service)
         .with_state(state);
