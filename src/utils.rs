@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{error::OneDriveApiError, state::AppState};
+use crate::error::OneDriveApiError;
 use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
 
 const GRAPH_DRIVE_ROOT_URL: &str = "https://graph.microsoft.com/v1.0/me/drive/root";
@@ -25,8 +25,8 @@ const GRAPH_PATH_SEGMENT_ENCODE_SET: &AsciiSet = &CONTROLS
     .add(b'|')
     .add(b':');
 
-pub fn graph_children_url(state: &AppState, path: &str) -> Result<reqwest::Url, OneDriveApiError> {
-    let segments = onedrive_path_segments(&state.root_path, path);
+pub fn graph_children_url(root_path: &str, path: &str) -> Result<reqwest::Url, OneDriveApiError> {
+    let segments = onedrive_path_segments(root_path, path);
 
     if segments.is_empty() {
         return parse_graph_url(GRAPH_DRIVE_ROOT_CHILDREN_URL);
@@ -38,8 +38,8 @@ pub fn graph_children_url(state: &AppState, path: &str) -> Result<reqwest::Url, 
     ))
 }
 
-pub fn graph_item_url(state: &AppState, path: &str) -> Result<reqwest::Url, OneDriveApiError> {
-    let segments = onedrive_path_segments(&state.root_path, path);
+pub fn graph_item_url(root_path: &str, path: &str) -> Result<reqwest::Url, OneDriveApiError> {
+    let segments = onedrive_path_segments(root_path, path);
 
     if segments.is_empty() {
         return parse_graph_url(GRAPH_DRIVE_ROOT_URL);

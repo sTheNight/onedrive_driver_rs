@@ -71,6 +71,8 @@ pub async fn update_onedrive_config(
         )
     })?;
 
+    *state.access_token.lock().await = None;
+
     Ok(Json(Response::from(config)))
 }
 

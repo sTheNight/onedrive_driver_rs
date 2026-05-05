@@ -9,12 +9,24 @@ use serde::{Deserialize, Serialize};
 pub enum OneDriveApiError {
     #[error("request failed: {0}")]
     RequestFailed(#[from] reqwest::Error),
+    #[error(transparent)]
+    Service(#[from] ServiceError),
     #[error("upstream returned status {status}: {body}")]
     UpstreamStatus { status: u16, body: String },
     #[error("failed to build Graph URL: {0}")]
     GraphUrlBuild(String),
     #[error("invalid expires_in value: {0}")]
     InvalidExpiresIn(i64),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ServiceError {
+    #[error("onedrive config is missing")]
+    MissingOneDriveConfig,
+    #[error("{0} is empty in onedrive config")]
+    MissingOneDriveConfigField(&'static str),
+    #[error("database operation failed: {0}")]
+    Database(#[from] sea_orm::DbErr),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,6 +61,13 @@ impl From<OneDriveApiError> for ErrorMessage {
             OneDriveApiError::GraphUrlBuild(_) => StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
             OneDriveApiError::RequestFailed(_) | OneDriveApiError::InvalidExpiresIn(_) => {
                 StatusCode::BAD_GATEWAY.as_u16()
+            }
+            OneDriveApiError::Service(ServiceError::MissingOneDriveConfig)
+            | OneDriveApiError::Service(ServiceError::MissingOneDriveConfigField(_)) => {
+                StatusCode::CONFLICT.as_u16()
+            }
+            OneDriveApiError::Service(ServiceError::Database(_)) => {
+                StatusCode::INTERNAL_SERVER_ERROR.as_u16()
             }
             OneDriveApiError::UpstreamStatus { status, .. } => *status,
         };

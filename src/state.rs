@@ -4,8 +4,6 @@ use tokio::{sync::Mutex, time::Instant};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppStateError {
-    #[error("{0} is empty")]
-    MissingEnvVar(&'static str),
     #[error("failed to build http client: {0}")]
     HttpClientBuild(#[from] reqwest::Error),
 }
@@ -33,10 +31,6 @@ impl AccessToken {
 
 #[derive(Clone, Debug)]
 pub struct AppState {
-    pub root_path: String,
-    pub refresh_token: String,
-    pub client_id: String,
-    pub client_secret: String,
     pub access_token: Arc<Mutex<Option<AccessToken>>>,
     pub db_connection: DatabaseConnection,
     pub http_client: reqwest::Client,
@@ -44,23 +38,12 @@ pub struct AppState {
 
 impl AppState {
     pub fn init(db_connection: DatabaseConnection) -> Result<Self, AppStateError> {
-        let root_path = std::env::var("ONEDRIVE_ROOT_PATH").unwrap_or_default();
-        let client_id = std::env::var("ONEDRIVE_CLIENT_ID")
-            .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_CLIENT_ID"))?;
-        let client_secret = std::env::var("ONEDRIVE_CLIENT_SECRET")
-            .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_CLIENT_SECRET"))?;
-        let refresh_token = std::env::var("ONEDRIVE_REFRESH_TOKEN")
-            .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_REFRESH_TOKEN"))?;
         let http_client = reqwest::Client::builder()
             .user_agent("onedrive_driver_rs/0.1")
             .timeout(Duration::from_secs(60))
             .build()?;
 
         Ok(Self {
-            root_path,
-            refresh_token,
-            client_id,
-            client_secret,
             access_token: Arc::new(Mutex::new(None)),
             db_connection,
             http_client,
