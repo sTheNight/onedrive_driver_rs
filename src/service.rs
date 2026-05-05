@@ -2,18 +2,11 @@ use crate::{
     entity::onedrive_config,
     error::{OneDriveApiError, ServiceError},
     models::{self, FileListItem, GraphDriveItem, GraphListResponse},
-    state::{AccessToken, AppState},
+    state::{AccessToken, AppState, OneDriveConfig},
     utils,
 };
 use sea_orm::EntityTrait;
 use std::collections::HashMap;
-
-struct OneDriveConfig {
-    root_path: String,
-    client_id: String,
-    client_secret: String,
-    refresh_token: String,
-}
 
 pub struct OneDriveApiService {
     pub state: AppState,
@@ -61,6 +54,13 @@ impl OneDriveApiService {
     }
 
     async fn get_onedrive_config(&self) -> Result<OneDriveConfig, ServiceError> {
+        {
+            let config = self.state.onedrive_config.read().await;
+            if let Some(config) = config.as_ref() {
+                return Ok(config.clone());
+            }
+        }
+
         let config = onedrive_config::Entity::find_by_id(1)
             .one(&self.state.db_connection)
             .await?
@@ -72,12 +72,16 @@ impl OneDriveApiService {
         let refresh_token =
             non_empty_config_field(config.onedrive_refresh_token, "ONEDRIVE_REFRESH_TOKEN")?;
 
-        Ok(OneDriveConfig {
+        let config = OneDriveConfig {
             root_path: config.onedrive_root_path,
             client_id,
             client_secret,
             refresh_token,
-        })
+        };
+
+        *self.state.onedrive_config.write().await = Some(config.clone());
+
+        Ok(config)
     }
 
     async fn get_access_token(&self, config: &OneDriveConfig) -> Result<String, OneDriveApiError> {

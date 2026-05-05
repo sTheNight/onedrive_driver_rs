@@ -13,6 +13,13 @@ pub struct AccessToken {
     pub access_token: String,
     pub expires_at: Instant,
 }
+#[derive(Clone, Debug)]
+pub struct OneDriveConfig {
+    pub root_path: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub refresh_token: String,
+}
 
 impl AccessToken {
     pub fn new(access_token: String, expires_in: u64) -> Self {
@@ -34,6 +41,7 @@ pub struct AppState {
     pub access_token: Arc<RwLock<Option<AccessToken>>>,
     pub db_connection: DatabaseConnection,
     pub http_client: reqwest::Client,
+    pub onedrive_config: Arc<RwLock<Option<OneDriveConfig>>>,
 }
 
 impl AppState {
@@ -47,6 +55,7 @@ impl AppState {
             access_token: Arc::new(RwLock::new(None)),
             db_connection,
             http_client,
+            onedrive_config: Arc::new(RwLock::new(None)),
         })
     }
 }
