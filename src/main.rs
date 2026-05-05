@@ -1,6 +1,9 @@
 use std::net::SocketAddr;
 
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
@@ -9,6 +12,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::state::AppState;
 
+mod database;
+mod entity;
 mod error;
 mod handler;
 mod models;
@@ -17,13 +22,15 @@ mod state;
 mod utils;
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     init_tracing();
     if let Err(e) = dotenvy::dotenv() {
         tracing::warn!("Failed to load .env file: {}", e);
     }
 
-    let state = AppState::from_env().unwrap_or_else(|err| {
+    let _db = database::init_database().await?;
+
+    let state = AppState::init(_db).unwrap_or_else(|err| {
         tracing::error!("Failed to create AppState: {}", err);
         panic!("Could not create AppState")
     });
@@ -37,15 +44,21 @@ async fn main() -> std::io::Result<()> {
         ServeDir::new("dist").not_found_service(ServeFile::new("dist/index.html"));
 
     let app = Router::new()
-        .route("/api/list", get(handler::get_file_list))
-        .route("/api/list/", get(handler::get_file_list))
-        .route("/api/list/{*path}", get(handler::get_file_list))
-        .route("/api/download/{*path}", get(handler::download_file))
+        .route("/api/list", get(handler::file_list::get_file_list))
+        .route("/api/list/", get(handler::file_list::get_file_list))
+        .route("/api/list/{*path}", get(handler::file_list::get_file_list))
+        .route(
+            "/api/download/{*path}",
+            get(handler::file_list::download_file),
+        )
+        .route("/api/admin/init", post(handler::admin::init_admin_user))
         .layer(cors)
         .fallback_service(spa_fallback_service)
         .with_state(state);
     tracing::info!("Server listing on http://{}", addr);
-    axum::serve(listener, app).await
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
 
 fn init_tracing() {

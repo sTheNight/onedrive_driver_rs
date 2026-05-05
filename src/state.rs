@@ -1,3 +1,4 @@
+use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Mutex, time::Instant};
 
@@ -37,11 +38,12 @@ pub struct AppState {
     pub client_id: String,
     pub client_secret: String,
     pub access_token: Arc<Mutex<Option<AccessToken>>>,
+    pub db_connection: DatabaseConnection,
     pub http_client: reqwest::Client,
 }
 
 impl AppState {
-    pub fn from_env() -> Result<Self, AppStateError> {
+    pub fn init(db_connection: DatabaseConnection) -> Result<Self, AppStateError> {
         let root_path = std::env::var("ONEDRIVE_ROOT_PATH").unwrap_or_default();
         let client_id = std::env::var("ONEDRIVE_CLIENT_ID")
             .map_err(|_| AppStateError::MissingEnvVar("ONEDRIVE_CLIENT_ID"))?;
@@ -60,6 +62,7 @@ impl AppState {
             client_id,
             client_secret,
             access_token: Arc::new(Mutex::new(None)),
+            db_connection,
             http_client,
         })
     }
