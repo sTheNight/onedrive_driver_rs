@@ -1,16 +1,14 @@
-use std::net::SocketAddr;
-
+use crate::state::AppState;
 use axum::{
     Router,
     routing::{get, post, put},
 };
+use std::net::SocketAddr;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use crate::state::AppState;
 
 mod database;
 mod entity;
