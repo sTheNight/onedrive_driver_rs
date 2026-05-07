@@ -8,23 +8,39 @@ use super::login::Claims;
 
 pub(crate) const ADMIN_TOKEN_COOKIE_NAME: &str = "admin_token";
 
+#[derive(Debug, Clone)]
+pub(crate) struct CurrentAdminUser {
+    pub id: i32,
+    pub username: String,
+}
+
 pub(crate) fn ensure_admin_authenticated(
     jar: &CookieJar,
     request_path: &str,
-) -> Result<(), ErrorMessage> {
+) -> Result<CurrentAdminUser, ErrorMessage> {
     let token = jar
         .get(ADMIN_TOKEN_COOKIE_NAME)
         .map(|cookie| cookie.value())
         .ok_or_else(|| unauthorized(request_path))?;
     let jwt_secret = jwt_secret(request_path)?;
 
-    decode::<Claims>(
+    let claims = decode::<Claims>(
         token,
         &DecodingKey::from_secret(jwt_secret.as_bytes()),
         &Validation::default(),
     )
-    .map(|_| ())
-    .map_err(|_| unauthorized(request_path))
+    .map_err(|_| unauthorized(request_path))?
+    .claims;
+
+    let id = claims
+        .sub
+        .parse::<i32>()
+        .map_err(|_| unauthorized(request_path))?;
+
+    Ok(CurrentAdminUser {
+        id,
+        username: claims.username,
+    })
 }
 
 pub(crate) fn jwt_secret(request_path: &str) -> Result<String, ErrorMessage> {

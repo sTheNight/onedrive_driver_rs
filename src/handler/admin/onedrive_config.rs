@@ -38,7 +38,7 @@ pub async fn update_onedrive_config(
     Json(payload): Json<Request>,
 ) -> Result<impl IntoResponse, ErrorMessage> {
     let request_path = uri.path().to_string();
-    ensure_admin_authenticated(&jar, &request_path)?;
+    let _ = ensure_admin_authenticated(&jar, &request_path)?;
 
     let existing_config = onedrive_config::Entity::find_by_id(1)
         .one(&state.db_connection)
