@@ -15,7 +15,7 @@ use crate::{entity::admin_user, error::ErrorMessage, state::AppState};
 
 use super::auth::{ADMIN_TOKEN_COOKIE_NAME, jwt_secret};
 
-const JWT_EXPIRES_IN_SECONDS: u64 = 7 * 24 * 60 * 60;
+const JWT_EXPIRES_IN_SECONDS: u64 = 30 * 60;
 
 #[derive(Debug, Deserialize)]
 pub struct Request {

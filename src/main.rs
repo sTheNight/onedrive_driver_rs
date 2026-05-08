@@ -1,11 +1,12 @@
 use crate::state::AppState;
 use axum::{
     Router,
+    http::{HeaderValue, Method, header},
     routing::{get, post, put},
 };
 use std::net::SocketAddr;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     services::{ServeDir, ServeFile},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -33,7 +34,14 @@ async fn main() -> anyhow::Result<()> {
         panic!("Could not create AppState")
     });
 
-    let cors = CorsLayer::new().allow_methods(Any).allow_origin(Any);
+    let cors = CorsLayer::new()
+        .allow_origin([
+            HeaderValue::from_static("http://localhost:5173"),
+            HeaderValue::from_static("http://127.0.0.1:5173"),
+        ])
+        .allow_methods([Method::GET, Method::POST, Method::PUT])
+        .allow_headers([header::CONTENT_TYPE])
+        .allow_credentials(true);
     let listen_port = utils::get_env("LISTEN_PORT", 3000);
     let addr = SocketAddr::from(([127, 0, 0, 1], listen_port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
