@@ -10,10 +10,6 @@ use axum_extra::extract::cookie::CookieJar;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};
 
-use crate::{entity::onedrive_config, error::ErrorMessage, state::AppState};
-
-use super::auth::ensure_admin_authenticated;
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Request {
