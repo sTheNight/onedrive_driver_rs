@@ -1,3 +1,5 @@
+use super::auth::ensure_admin_authenticated;
+use crate::{entity::onedrive_config, error::ErrorMessage, state::AppState};
 use axum::{
     Json,
     extract::{OriginalUri, State},
@@ -29,6 +31,33 @@ pub struct Response {
     pub onedrive_client_id: String,
     pub onedrive_client_secret: String,
     pub onedrive_refresh_token: String,
+}
+
+pub async fn get_onedrive_config(
+    State(state): State<AppState>,
+    OriginalUri(uri): OriginalUri,
+    jar: CookieJar,
+) -> Result<impl IntoResponse, ErrorMessage> {
+    let request_path = uri.path().to_string();
+    let _ = ensure_admin_authenticated(&jar, &request_path)?;
+    let config = onedrive_config::Entity::find_by_id(1)
+        .one(&state.db_connection)
+        .await
+        .map_err(|err| {
+            ErrorMessage::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &request_path,
+                format!("failed to query onedrive config: {err}"),
+            )
+        })?;
+    match config {
+        None => Err(ErrorMessage::new(
+            StatusCode::CONFLICT,
+            &request_path,
+            "onedrive config is not initialized",
+        )),
+        Some(config) => Ok(Json(Response::from(config))),
+    }
 }
 
 pub async fn update_onedrive_config(

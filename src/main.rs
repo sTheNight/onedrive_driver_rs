@@ -63,6 +63,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/admin/onedrive-config",
             put(handler::admin::update_onedrive_config),
         )
+        .route(
+            "/api/admin/onedrive-config",
+            get(handler::admin::get_onedrive_config),
+        )
         .route("/api/admin/me", get(handler::admin::get_current_user))
         .layer(cors)
         .fallback_service(spa_fallback_service)
