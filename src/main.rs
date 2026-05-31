@@ -1,10 +1,12 @@
 use crate::state::AppState;
+use anyhow::{Context, Result};
 use axum::{
     Router,
     http::{HeaderValue, Method, header},
     routing::{get, post, put},
 };
-use std::net::SocketAddr;
+use clap::{Parser, Subcommand};
+use std::{io, net::SocketAddr, path::Path};
 use tower_http::{
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
@@ -20,8 +22,56 @@ mod service;
 mod state;
 mod utils;
 
+#[derive(Parser, Debug)]
+#[command(name = "onedrive_driver_rs")]
+#[command(version)]
+#[command(about = "OneDrive Driver server and management CLI")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Start,
+    Reset,
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(Commands::Start) => {
+            start_server().await?;
+        }
+        Some(Commands::Reset) => {
+            reset_config().await?;
+        }
+        None => {}
+    }
+    Ok(())
+}
+
+async fn reset_config() -> Result<()> {
+    let path = Path::new("./onedrive_driver.sqlite");
+
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            println!("Removed file: {}", path.display());
+            Ok(())
+        }
+
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            println!("File does not exist, skipped: {}", path.display());
+            Ok(())
+        }
+
+        Err(err) => Err(err).with_context(|| format!("failed to remove file: {}", path.display())),
+    }
+}
+
+async fn start_server() -> Result<()> {
     init_tracing();
     if let Err(e) = dotenvy::dotenv() {
         tracing::warn!("Failed to load .env file: {}", e);
@@ -42,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         .allow_methods([Method::GET, Method::POST, Method::PUT])
         .allow_headers([header::CONTENT_TYPE])
         .allow_credentials(true);
+
     let listen_port = utils::get_env("LISTEN_PORT", 3000);
     let addr = SocketAddr::from(([127, 0, 0, 1], listen_port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -71,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors)
         .fallback_service(spa_fallback_service)
         .with_state(state);
-    tracing::info!("Server listing on http://{}", addr);
+    tracing::info!("Server listening on http://{}", addr);
     axum::serve(listener, app).await?;
 
     Ok(())
