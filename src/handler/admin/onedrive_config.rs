@@ -13,20 +13,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Request {
-    pub onedrive_root_path: String,
-    pub onedrive_client_id: String,
-    pub onedrive_client_secret: String,
-    pub onedrive_refresh_token: String,
+    pub one_drive_root_path: String,
+    pub one_drive_client_id: String,
+    pub one_drive_client_secret: String,
+    pub one_drive_refresh_token: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
     pub id: i32,
-    pub onedrive_root_path: String,
-    pub onedrive_client_id: String,
-    pub onedrive_client_secret: String,
-    pub onedrive_refresh_token: String,
+    pub one_drive_root_path: String,
+    pub one_drive_client_id: String,
+    pub one_drive_client_secret: String,
+    pub one_drive_refresh_token: String,
 }
 
 pub async fn get_onedrive_config(
@@ -78,10 +78,10 @@ pub async fn update_onedrive_config(
 
     let active_model = onedrive_config::ActiveModel {
         id: Set(1),
-        onedrive_root_path: Set(payload.onedrive_root_path),
-        onedrive_client_id: Set(payload.onedrive_client_id),
-        onedrive_client_secret: Set(payload.onedrive_client_secret),
-        onedrive_refresh_token: Set(payload.onedrive_refresh_token),
+        onedrive_root_path: Set(payload.one_drive_root_path),
+        onedrive_client_id: Set(payload.one_drive_client_id),
+        onedrive_client_secret: Set(payload.one_drive_client_secret),
+        onedrive_refresh_token: Set(payload.one_drive_refresh_token),
     };
 
     let config = match existing_config {
@@ -106,10 +106,10 @@ impl From<onedrive_config::Model> for Response {
     fn from(config: onedrive_config::Model) -> Self {
         Self {
             id: config.id,
-            onedrive_root_path: config.onedrive_root_path,
-            onedrive_client_id: config.onedrive_client_id,
-            onedrive_client_secret: config.onedrive_client_secret,
-            onedrive_refresh_token: config.onedrive_refresh_token,
+            one_drive_root_path: config.onedrive_root_path,
+            one_drive_client_id: config.onedrive_client_id,
+            one_drive_client_secret: config.onedrive_client_secret,
+            one_drive_refresh_token: config.onedrive_refresh_token,
         }
     }
 }

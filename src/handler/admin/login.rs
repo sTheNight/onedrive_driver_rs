@@ -28,6 +28,8 @@ pub struct Request {
 pub struct Response {
     pub id: i32,
     pub username: String,
+    pub access_token: String,
+    pub exp_min: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -87,7 +89,7 @@ pub async fn login(
     }
 
     let token = create_admin_token(&admin_user, &request_path)?;
-    let cookie = Cookie::build((ADMIN_TOKEN_COOKIE_NAME, token))
+    let cookie = Cookie::build((ADMIN_TOKEN_COOKIE_NAME, token.clone()))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Lax)
@@ -99,6 +101,8 @@ pub async fn login(
         Json(Response {
             id: admin_user.id,
             username: admin_user.username,
+            access_token: token.clone(),
+            exp_min: JWT_EXPIRES_IN_SECONDS,
         }),
     ))
 }
